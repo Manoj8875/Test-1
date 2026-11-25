@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Candle Clash — Real-Time SOL Price Prediction Game</title>
+<style>
+  :root{
+    --bg:#0b0e13; --panel:#12161f; --panel2:#171c28; --line:#232a3a;
+    --text:#e8ecf3; --muted:#8b94a7; --green:#16c784; --red:#ea3943;
+    --amber:#f5b83d; --blue:#4c8dff;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,Roboto,sans-serif;min-height:100vh}
+  .wrap{max-width:1080px;margin:0 auto;padding:12px}
+  header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 2px 12px}
+  .logo{font-size:22px;font-weight:800;letter-spacing:.5px}
+  .logo span{color:var(--amber)}
+  .live-price{margin-left:auto;text-align:right}
+  .live-price .p{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums}
+  .live-price .s{font-size:11px;color:var(--muted)}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-right:5px;animation:pulse 1.2s infinite}
+  .dot.stale{background:var(--red);animation:none}
+  @keyframes pulse{0%{opacity:1}50%{opacity:.35}100%{opacity:1}}
+  .pill{font-size:11px;padding:4px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);background:var(--panel)}
+  .pill.on{color:#0b0e13;background:var(--green);border-color:var(--green);font-weight:700}
+  .grid{display:grid;grid-template-columns:1fr 340px;gap:12px}
+  @media(max-width:820px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+  .card h3{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-bottom:10px}
+  #chart{width:100%;height:230px;display:block}
+  .roundbar{display:flex;align-items:center;gap:12px;margin-top:10px}
+  .timer{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;min-width:52px;text-align:center}
+  .timer.urgent{color:var(--red)}
+  .progress{flex:1;height:8px;background:var(--panel2);border-radius:99px;overflow:hidden}
+  .progress>div{height:100%;background:linear-gradient(90deg,var(--amber),var(--green));width:100%;transition:width .25s linear}
+  .roundmeta{font-size:12px;color:var(--muted);line-height:1.7}
+  .roundmeta b{color:var(--text);font-variant-numeric:tabular-nums}
+  .balance{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums}
+  .balance small{font-size:12px;color:var(--muted);font-weight:600}
+  .stakes{display:flex;gap:8px;margin:12px 0}
+  .chip{flex:1;padding:10px 0;text-align:center;border-radius:10px;border:1px solid var(--line);background:var(--panel2);font-weight:700;cursor:pointer;font-size:15px;color:var(--text)}
+  .chip.sel{border-color:var(--amber);color:var(--amber);background:#241d0d}
+  .pickrow{display:flex;gap:10px}
+  .pick{flex:1;padding:18px 0;border:none;border-radius:12px;font-size:19px;font-weight:800;cursor:pointer;color:#fff;letter-spacing:.5px}
+  .pick.up{background:linear-gradient(180deg,#1ed891,#0e9f6a)}
+  .pick.down{background:linear-gradient(180deg,#f4524f,#c62f36)}
+  .pick:disabled{opacity:.35;cursor:not-allowed}
+  .pick:active:not(:disabled){transform:scale(.98)}
+  .betstatus{margin-top:12px;font-size:13px;min-height:20px;color:var(--muted);text-align:center}
+  .betstatus b{color:var(--amber)}
+  .streak{font-size:13px;color:var(--muted);margin-top:6px}
+  .streak b{color:var(--amber)}
+  .refill{margin-top:10px;width:100%;padding:10px;border-radius:10px;border:1px dashed var(--amber);background:transparent;color:var(--amber);font-weight:700;cursor:pointer;display:none}
+  .stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:12px}
+  @media(max-width:820px){.stats{grid-template-columns:repeat(3,1fr)}}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
+  .stat .v{font-size:19px;font-weight:800;font-variant-numeric:tabular-nums}
+  .stat .k{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:2px}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+  @media(max-width:820px){.cols{grid-template-columns:1fr}}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  td,th{padding:7px 4px;border-bottom:1px solid var(--line);text-align:left;font-variant-numeric:tabular-nums}
+  th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.8px}
+  tr.you td{color:var(--amber);font-weight:700}
+  .win{color:var(--green);font-weight:700}.loss{color:var(--red);font-weight:700}.push{color:var(--muted);font-weight:700}
+  .txlink{color:var(--blue);text-decoration:none;font-size:11px}
+  .empty{color:var(--muted);font-size:13px;padding:8px 0}
+  #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(90px);background:var(--panel2);border:1px solid var(--line);padding:13px 22px;border-radius:12px;font-weight:800;font-size:16px;transition:transform .3s;z-index:9;box-shadow:0 10px 34px rgba(0,0,0,.5);text-align:center;max-width:92vw}
+  #toast.show{transform:translateX(-50%) translateY(0)}
+  #toast.win{border-color:var(--green);color:var(--green)}
+  #toast.loss{border-color:var(--red);color:var(--red)}
+  footer{margin:16px 2px 8px;font-size:11.5px;color:var(--muted);line-height:1.7;text-align:center}
+  footer b{color:var(--text)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">🕯️ CANDLE <span>CLASH</span></div>
+    <div class="pill" id="chainPill">checking chain…</div>
+    <div class="live-price">
+      <div class="p"><span class="dot" id="liveDot"></span>$<span id="priceNow">—</span></div>
+      <div class="s">SOL / USD · <span id="feedSrc">connecting…</span></div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <h3>Live Chart — SOL/USD</h3>
+      <canvas id="chart"></canvas>
+      <div class="roundbar">
+        <div class="timer" id="timer">–</div>
+        <div class="progress"><div id="progressFill"></div></div>
+      </div>
+      <div class="roundmeta" id="roundMeta">Waiting for first price tick…</div>
+    </div>
+
+    <div class="card">
+      <h3>Your Balance</h3>
+      <div class="balance"><span id="balance">1,000</span> <small>PLAY CREDITS</small></div>
+      <div class="streak">🔥 Win streak: <b id="streak">0</b> · Best: <b id="bestStreak">0</b></div>
+      <h3 style="margin-top:14px">Stake</h3>
+      <div class="stakes" id="stakes">
+        <div class="chip" data-stake="10">10</div>
+        <div class="chip sel" data-stake="25">25</div>
+        <div class="chip" data-stake="50">50</div>
+        <div class="chip" data-stake="100">100</div>
+      </div>
+      <div class="pickrow">
+        <button class="pick up" id="btnUp">▲ UP</button>
+        <button class="pick down" id="btnDown">▼ DOWN</button>
+      </div>
+      <div class="betstatus" id="betStatus">Pick a direction before the round locks.</div>
+      <button class="refill" id="btnRefill">Out of credits — refill 1,000 free</button>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="v" id="stRounds">0</div><div class="k">Rounds</div></div>
+    <div class="stat"><div class="v" id="stWins">0</div><div class="k">Wins</div></div>
+    <div class="stat"><div class="v" id="stLosses">0</div><div class="k">Losses</div></div>
+    <div class="stat"><div class="v" id="stRate">—</div><div class="k">Win rate</div></div>
+    <div class="stat"><div class="v" id="stProfit">0</div><div class="k">Net profit</div></div>
+  </div>
+
+  <div class="cols">
+    <div class="card">
+      <h3>🏆 Leaderboard</h3>
+      <table><thead><tr><th>#</th><th>Player</th><th>Score</th><th>Streak</th></tr></thead>
+      <tbody id="boardBody"></tbody></table>
+    </div>
+    <div class="card">
+      <h3>Round History</h3>
+      <div id="history"><div class="empty">No rounds settled yet — place your first call!</div></div>
+    </div>
+  </div>
+
+  <footer>
+    <b>Candle Clash</b> — a real-time Entertainment Finance game built for <b>Solana Blitz v10</b> (MagicBlock).<br>
+    Prices stream live from the <b>Pyth Network</b> (with automatic exchange fallbacks). Bets &amp; settlements are recorded as Solana <b>devnet</b> transactions routed through
+    <b>MagicBlock's Magic Router</b>. Play credits only — <b>no real money, ever</b>.
+  </footer>
+</div>
+<div id="toast"></div>
+<script>
+'use strict';
+/* ================= Candle Clash game engine ================= */
+const FEED_ID = 'ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d'; // Pyth SOL/USD
+const HERMES = 'https://hermes.pyth.network';
+const params = new URLSearchParams(location.search);
+const ROUND_LEN = Math.max(5, parseInt(params.get('round') || '30', 10)); // ?round=6 for fast demo/testing
+const LOCK_SECS = Math.min(3, Math.max(1, ROUND_LEN * 0.15));
+const PAYOUT_MULT = 1.9;
+const START_BALANCE = 1000;
+
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => Math.round(n).toLocaleString('en-US');
+const fmtP = (p) => p ? p.toFixed(p < 10 ? 4 : 2) : '—';
+
+/* ---------- state (persisted in localStorage) ---------- */
+let S = JSON.parse(localStorage.getItem('cc_state') || 'null') || {
+  balance: START_BALANCE, rounds: 0, wins: 0, losses: 0, pushes: 0,
+  streak: 0, bestStreak: 0, profit: 0, history: [],
+};
+let stake = 25;
+let ticks = [];               // {t: seconds, p: price}
+let lastTickAt = 0;
+let curRound = null;          // round id currently displayed
+let roundStartPrice = null;   // price at start of curRound
+let activeBet = null;         // {round, pick, stake, startPrice, betSig}
+let bots = [
+  { name: 'SolSurfer', score: 1420, streak: 3 }, { name: 'Pythia', score: 1310, streak: 1 },
+  { name: 'CandleQueen', score: 1185, streak: 2 }, { name: 'DegenDan', score: 960, streak: 0 },
+  { name: 'MoonBagz', score: 880, streak: 4 }, { name: 'LiquidityLena', score: 745, streak: 0 },
+  { name: 'SatoshiJr', score: 690, streak: 1 },
+];
+function save() { localStorage.setItem('cc_state', JSON.stringify(S)); }
+
+/* ---------- price feed: Pyth Hermes primary, Coinbase/Kraken/CoinGecko fallbacks ----------
+   Pyth Hermes is the primary source (SSE stream + REST). Some networks/IPs get
+   401 from Hermes' public endpoint, so a Coinbase WebSocket stream and a REST
+   polling cascade keep the game live everywhere. The UI always names the
+   source that is actually feeding prices. */
+let feedSource = null;
+function pushTick(p, source) {
+  if (!isFinite(p) || p <= 0) return;
+  const now = Date.now() / 1000;
+  ticks.push({ t: now, p });
+  if (ticks.length > 600) ticks = ticks.slice(-600);
+  lastTickAt = Date.now();
+  if (feedSource !== source) { feedSource = source; $('feedSrc').textContent = source + ' · live'; }
+  $('priceNow').textContent = fmtP(p);
+  $('liveDot').classList.remove('stale');
+}
+function handlePyth(parsed) {
+  if (!parsed || !parsed.length) return;
+  const it = parsed.find(x => x.id && x.id.replace(/^0x/, '') === FEED_ID) || parsed[0];
+  const p = parseInt(it.price.price, 10) * Math.pow(10, it.price.expo);
+  pushTick(p, 'Pyth Network');
+}
+async function pollPyth() {
+  const r = await fetch(`${HERMES}/v2/updates/price/latest?ids[]=${FEED_ID}&parsed=true`);
+  if (!r.ok) throw new Error('pyth ' + r.status);
+  handlePyth((await r.json()).parsed);
+}
+async function pollREST() {
+  // gap-filler only: streams are preferred when they are delivering
+  if (Date.now() - lastTickAt < 2500) return;
+  try { const r = await fetch('/api/price'); const j = await r.json(); if (j.price) { pushTick(j.price, j.source); return; } } catch (e) {}
+  try { const r = await fetch('https://api.exchange.coinbase.com/products/SOL-USD/ticker'); const j = await r.json(); pushTick(parseFloat(j.price), 'Coinbase Exchange'); return; } catch (e) {}
+  try { const r = await fetch('https://api.kraken.com/0/public/Ticker?pair=SOLUSD'); const j = await r.json(); pushTick(parseFloat(j.result.SOLUSD.c[0]), 'Kraken'); return; } catch (e) {}
+  try { const r = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd'); const j = await r.json(); pushTick(j.solana.usd, 'CoinGecko'); } catch (e) {}
+}
+function startFeed() {
+  pollPyth().catch(() => pollREST());
+  // Pyth SSE stream (primary)
+  try {
+    const es = new EventSource(`${HERMES}/v2/updates/price/stream?ids[]=${FEED_ID}&parsed=true`);
+    es.onmessage = (ev) => { try { handlePyth(JSON.parse(ev.data).parsed); } catch (e) {} };
+  } catch (e) {}
+  // Coinbase WebSocket stream (fallback, true real-time)
+  try {
+    const ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
+    ws.onopen = () => ws.send(JSON.stringify({ type: 'subscribe', product_ids: ['SOL-USD'], channels: ['ticker'] }));
+    ws.onmessage = (ev) => { try { const j = JSON.parse(ev.data); if (j.type === 'ticker' && j.price) pushTick(parseFloat(j.price), 'Coinbase Exchange'); } catch (e) {} };
+  } catch (e) {}
+  setInterval(pollREST, 2000);
+  setInterval(() => { if (Date.now() - lastTickAt > 6000) $('liveDot').classList.add('stale'); }, 2000);
+}
+function priceAtOrBefore(t) {
+  let best = null;
+  for (const tk of ticks) { if (tk.t <= t) best = tk; else break; }
+  return best ? best.p : (ticks.length ? ticks[0].p : null);
+}
+function latestPrice() { return ticks.length ? ticks[ticks.length - 1].p : null; }
+
+/* ---------- on-chain recording (server -> Magic Router -> devnet) ---------- */
+async function record(payload) {
+  try {
+    const r = await fetch('/api/record', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    return await r.json();
+  } catch (e) { return { onchain: false, reason: 'server unreachable' }; }
+}
+async function chainStatus() {
+  try {
+    const r = await fetch('/api/status'); const j = await r.json();
+    const pill = $('chainPill');
+    if (j.funded) { pill.textContent = '⛓ Devnet recording ON · via Magic Router'; pill.classList.add('on'); }
+    else { pill.textContent = '⛓ Devnet recording OFF · recorder unfunded (game fully playable)'; }
+  } catch (e) { $('chainPill').textContent = '⛓ chain status unknown'; }
+}
+
+/* ---------- rounds engine ---------- */
+function roundIdAt(sec) { return Math.floor(sec / ROUND_LEN); }
+function tickEngine() {
+  const now = Date.now() / 1000;
+  const rid = roundIdAt(now);
+  const rStart = rid * ROUND_LEN, rEnd = rStart + ROUND_LEN;
+  const secsLeft = Math.max(0, rEnd - now);
+
+  if (curRound === null && ticks.length) { curRound = rid; roundStartPrice = priceAtOrBefore(rStart) || latestPrice(); }
+  if (curRound !== null && rid !== curRound) {
+    // round rolled over -> settle the finished round
+    settleRound(curRound, priceAtOrBefore(rStart) || latestPrice());
+    curRound = rid;
+    roundStartPrice = priceAtOrBefore(rStart) || latestPrice();
+    driftBots();
+  }
+
+  // timer UI
+  $('timer').textContent = Math.ceil(secsLeft);
+  $('timer').classList.toggle('urgent', secsLeft <= LOCK_SECS + 0.01);
+  $('progressFill').style.width = (secsLeft / ROUND_LEN * 100) + '%';
+  const locked = secsLeft <= LOCK_SECS;
+  const hasBet = activeBet && activeBet.round === curRound;
+  $('btnUp').disabled = locked || hasBet || !ticks.length;
+  $('btnDown').disabled = locked || hasBet || !ticks.length;
+  if (roundStartPrice) {
+    $('roundMeta').innerHTML =
+      `Round <b>#${curRound}</b> · Open price <b>$${fmtP(roundStartPrice)}</b> · ` +
+      (locked ? '<b style="color:var(--red)">LOCKED — settling…</b>' : 'Betting open') +
+      (hasBet ? ` · Your call: <b>${activeBet.pick}</b> for <b>${activeBet.stake}</b>` : '');
+  }
+  drawChart(rStart);
+}
+
+function placeBet(pick) {
+  if (!ticks.length || activeBet) return;
+  if (S.balance < stake) { toast('Not enough credits — lower your stake or refill.', 'loss'); return; }
+  const now = Date.now() / 1000;
+  if (roundIdAt(now) !== curRound) return;
+  S.balance -= stake; save();
+  activeBet = { round: curRound, pick, stake, startPrice: roundStartPrice };
+  $('betStatus').innerHTML = `You called <b>${pick}</b> with <b>${stake}</b> credits on round #${curRound}. Settles at $${fmtP(roundStartPrice)} open.`;
+  renderStats();
+  record({ event: 'bet', round: curRound, pick, stake, open: roundStartPrice }).then((res) => {
+    if (activeBet && activeBet.round === curRound) activeBet.betSig = res.signature || null;
+  });
+}
+
+function settleRound(rid, endPrice) {
+  const bet = activeBet && activeBet.round === rid ? activeBet : null;
+  if (!bet) return;
+  activeBet = null;
+  const start = bet.startPrice;
+  let result, payout = 0;
+  if (endPrice === start) { result = 'PUSH'; payout = bet.stake; S.pushes++; }
+  else {
+    const upWon = endPrice > start;
+    const won = (bet.pick === 'UP') === upWon;
+    if (won) { result = 'WIN'; payout = Math.floor(bet.stake * PAYOUT_MULT); S.wins++; S.streak++; S.bestStreak = Math.max(S.bestStreak, S.streak); }
+    else { result = 'LOSS'; S.losses++; S.streak = 0; }
+  }
+  S.balance += payout;
+  S.rounds++;
+  S.profit += payout - bet.stake;
+  const entry = { round: rid, pick: bet.pick, stake: bet.stake, open: start, close: endPrice, result, payout, betSig: bet.betSig || null, settleSig: null };
+  S.history.unshift(entry); S.history = S.history.slice(0, 10);
+  save(); renderStats(); renderHistory();
+  if (result === 'WIN') toast(`🎉 Round #${rid}: ${bet.pick} was right! +${fmt(payout - bet.stake)} credits`, 'win');
+  else if (result === 'LOSS') toast(`Round #${rid}: price went ${endPrice > start ? 'UP' : 'DOWN'} — you lose ${bet.stake}.`, 'loss');
+  else toast(`Round #${rid}: dead heat — stake refunded.`, '');
+  $('betStatus').textContent = 'Pick a direction before the round locks.';
+  record({ event: 'settle', round: rid, pick: bet.pick, stake: bet.stake, open: start, close: endPrice, result, payout }).then((res) => {
+    const e = S.history.find(h => h.round === rid);
+    if (e && res.signature) { e.settleSig = res.signature; save(); renderHistory(); }
+  });
+}
+
+function driftBots() {
+  for (const b of bots) {
+    const d = Math.round((Math.random() - 0.46) * 90);
+    b.score = Math.max(120, b.score + d);
+    b.streak = d > 0 ? b.streak + 1 : 0;
+  }
+  renderBoard();
+}
+
+/* ---------- chart ---------- */
+const cv = $('chart'), ctx = cv.getContext('2d');
+function drawChart(rStart) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth, h = cv.clientHeight;
+  if (cv.width !== w * dpr) { cv.width = w * dpr; cv.height = h * dpr; }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  if (ticks.length < 2) { ctx.fillStyle = '#8b94a7'; ctx.font = '13px sans-serif'; ctx.fillText('Streaming live prices from Pyth…', 14, 24); return; }
+  const data = ticks.slice(-110);
+  const ps = data.map(d => d.p);
+  let min = Math.min(...ps), max = Math.max(...ps);
+  const pad = (max - min) * 0.18 || 0.5; min -= pad; max += pad;
+  const X = (i) => (i / (data.length - 1)) * (w - 8) + 4;
+  const Y = (p) => h - ((p - min) / (max - min)) * (h - 16) - 8;
+  // grid
+  ctx.strokeStyle = '#1b2231'; ctx.lineWidth = 1;
+  for (let i = 1; i < 4; i++) { ctx.beginPath(); ctx.moveTo(0, h * i / 4); ctx.lineTo(w, h * i / 4); ctx.stroke(); }
+  // round-open line
+  if (roundStartPrice) {
+    ctx.strokeStyle = '#f5b83d'; ctx.setLineDash([5, 5]);
+    ctx.beginPath(); ctx.moveTo(0, Y(roundStartPrice)); ctx.lineTo(w, Y(roundStartPrice)); ctx.stroke();
+    ctx.setLineDash([]); ctx.fillStyle = '#f5b83d'; ctx.font = '10px sans-serif';
+    ctx.fillText('round open $' + fmtP(roundStartPrice), 6, Y(roundStartPrice) - 4);
+  }
+  // line + fill
+  const last = ps[ps.length - 1];
+  const col = roundStartPrice && last < roundStartPrice ? '#ea3943' : '#16c784';
+  ctx.beginPath();
+  data.forEach((d, i) => i ? ctx.lineTo(X(i), Y(d.p)) : ctx.moveTo(X(i), Y(d.p)));
+  ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
+  ctx.lineTo(X(data.length - 1), h); ctx.lineTo(X(0), h); ctx.closePath();
+  const g = ctx.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, col + '44'); g.addColorStop(1, col + '00');
+  ctx.fillStyle = g; ctx.fill();
+  // last point
+  ctx.beginPath(); ctx.arc(X(data.length - 1), Y(last), 3.5, 0, 7); ctx.fillStyle = col; ctx.fill();
+  ctx.fillStyle = '#8b94a7'; ctx.font = '10px sans-serif';
+  ctx.fillText('$' + fmtP(max - pad), 6, 12); ctx.fillText('$' + fmtP(min + pad), 6, h - 4);
+}
+
+/* ---------- rendering ---------- */
+function renderStats() {
+  $('balance').textContent = fmt(S.balance);
+  $('streak').textContent = S.streak; $('bestStreak').textContent = S.bestStreak;
+  $('stRounds').textContent = S.rounds; $('stWins').textContent = S.wins; $('stLosses').textContent = S.losses;
+  const decided = S.wins + S.losses;
+  $('stRate').textContent = decided ? Math.round(S.wins / decided * 100) + '%' : '—';
+  $('stProfit').textContent = (S.profit >= 0 ? '+' : '') + fmt(S.profit);
+  $('btnRefill').style.display = S.balance < 10 ? 'block' : 'none';
+}
+function renderBoard() {
+  const rows = [...bots, { name: 'YOU', score: S.balance, streak: S.streak, you: true }]
+    .sort((a, b) => b.score - a.score);
+  $('boardBody').innerHTML = rows.map((r, i) =>
+    `<tr class="${r.you ? 'you' : ''}"><td>${i + 1}</td><td>${r.name}</td><td>${fmt(r.score)}</td><td>${r.streak ? '🔥 ' + r.streak : '—'}</td></tr>`).join('');
+}
+function txLink(sig, label) {
+  return sig ? ` · <a class="txlink" target="_blank" rel="noopener" href="https://explorer.solana.com/tx/${sig}?cluster=devnet">${label} ↗</a>` : '';
+}
+function renderHistory() {
+  if (!S.history.length) { $('history').innerHTML = '<div class="empty">No rounds settled yet — place your first call!</div>'; return; }
+  $('history').innerHTML = '<table><thead><tr><th>Round</th><th>Call</th><th>Open → Close</th><th>Result</th></tr></thead><tbody>' +
+    S.history.map(e => `<tr><td>#${e.round}</td><td>${e.pick} · ${e.stake}</td>
+      <td>$${fmtP(e.open)} → $${fmtP(e.close)}</td>
+      <td><span class="${e.result === 'WIN' ? 'win' : e.result === 'LOSS' ? 'loss' : 'push'}">${e.result}${e.result === 'WIN' ? ' +' + fmt(e.payout - e.stake) : ''}</span>${txLink(e.betSig, 'bet tx')}${txLink(e.settleSig, 'settle tx')}</td></tr>`).join('') +
+    '</tbody></table>';
+}
+let toastTimer = null;
+function toast(msg, kind) {
+  const t = $('toast'); t.textContent = msg; t.className = 'show ' + kind;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.className = '', 3600);
+}
+
+/* ---------- wiring ---------- */
+$('stakes').addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip'); if (!chip) return;
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('sel'));
+  chip.classList.add('sel'); stake = parseInt(chip.dataset.stake, 10);
+});
+$('btnUp').addEventListener('click', () => placeBet('UP'));
+$('btnDown').addEventListener('click', () => placeBet('DOWN'));
+$('btnRefill').addEventListener('click', () => { S.balance += 1000; save(); renderStats(); renderBoard(); toast('Refilled 1,000 play credits. GLHF!', 'win'); });
+
+renderStats(); renderBoard(); renderHistory();
+startFeed(); chainStatus();
+setInterval(tickEngine, 200);
+setInterval(chainStatus, 30000);
+</script>
+</body>
+</html>

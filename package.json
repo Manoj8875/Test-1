@@ -1,0 +1,19 @@
+{
+  "name": "candle-clash",
+  "version": "1.0.0",
+  "description": "Candle Clash — real-time SOL price-prediction game for Solana Blitz v10 (MagicBlock)",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js",
+    "fund": "node fund.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@magicblock-labs/ephemeral-rollups-sdk": "^0.20.0",
+    "@solana/web3.js": "^1.98.4"
+  },
+  "type": "module"
+}
